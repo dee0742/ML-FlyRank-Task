@@ -145,3 +145,50 @@ build on — and the `skills/` folder here is the instruction library for your A
 ---
 
 *Track leads: Mirza Ašćerić (ML) · Hole (data engineering). Code under MIT (see `LICENSE`); data under `DATA_USE.md`.*
+
+
+---
+
+## Capstone — Content Refresh Opportunity Ranking
+
+**Applied Search Intelligence | Final Capstone**
+
+This capstone builds a human-in-the-loop ranking workflow for prioritizing content pages that show an observed decline in search impressions.
+
+### What I built
+
+- **Data:** 30,000 public-safe content rows across 32 pseudonymized clients
+- **Target:** observed decline label derived from `trend_direction == "down"`
+- **Baseline:** transparent staleness + search-demand score
+- **Model:** Random Forest classifier
+- **Validation:** 80/20 client-grouped split with zero client overlap
+- **Metrics:** Precision@20, Precision@50, Precision@100
+- **Output:** ranked review queue with action signals and reason codes
+- **Leakage controls:** target-derived trend fields and identifiers excluded from model features
+
+### Held-out results
+
+| Method | Precision@20 | Precision@50 | Precision@100 |
+|---|---:|---:|---:|
+| Random Forest | **0.70** | **0.64** | **0.62** |
+| Staleness + demand baseline | 0.40 | 0.38 | 0.38 |
+
+At Precision@50, the model measured **0.64** versus **0.38** for the baseline on the same client-held-out test set.
+
+These measurements describe ranking performance on the released evaluation setup. They are not a causal estimate of traffic recovered or a guarantee that refreshing a page will improve search performance.
+
+### Project artifacts
+
+- [Capstone notebook](work/notebooks/capstone.ipynb)
+- [Week 7 action playbook](work/notebooks/w07_action_playbook.ipynb)
+- [Research report](work/capstone_report.md)
+- [Deployed paper](https://dee0742.github.io/ML-FlyRank-Task/)
+
+### 5-minute demo flow
+
+1. **Question:** Can observable content and search-performance signals help prioritize pages showing observed decline?
+2. **Data:** 30,000 public-safe rows and 32 pseudonymized clients.
+3. **Method:** compare a transparent baseline with a Random Forest using client-grouped validation.
+4. **Result:** show the Precision@K comparison above.
+5. **Recommendation:** use the ranking as human-review decision support, with reviewers deciding whether to refresh, diagnose, or monitor a page.
+
