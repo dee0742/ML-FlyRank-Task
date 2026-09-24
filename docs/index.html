@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Content Refresh Opportunity Scoring — FlyRank Search Intelligence</title>
+<style>
+:root{--ink:#17202a;--muted:#667085;--line:#e5e7eb;--bg:#f7f8fa;--card:#fff;--accent:#2457d6;--accent2:#e9efff}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--ink);background:var(--bg);line-height:1.65}
+main{max-width:1050px;margin:auto;padding:36px 22px 80px}.hero{background:linear-gradient(135deg,#101828,#263b72);color:#fff;border-radius:24px;padding:52px 46px;margin-bottom:28px;box-shadow:0 18px 50px #17202a22}.eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:12px;font-weight:700;opacity:.78}.hero h1{font-size:clamp(34px,5vw,58px);line-height:1.04;margin:14px 0 18px;max-width:850px}.hero p{font-size:18px;max-width:780px;color:#e7ecf7}.tag{display:inline-block;border:1px solid #ffffff44;border-radius:999px;padding:5px 10px;margin:6px 6px 0 0;font-size:12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:30px;margin:20px 0}h2{font-size:26px;margin:0 0 14px}h3{margin-top:26px}.lead{font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}.metric{background:#f8fafc;border:1px solid var(--line);border-radius:14px;padding:18px}.metric strong{display:block;font-size:30px;line-height:1.1}.metric span{color:var(--muted);font-size:13px}
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left}th{background:#f8fafc}.barrow{display:grid;grid-template-columns:170px 1fr 55px;gap:10px;align-items:center;margin:12px 0}.bar{height:15px;background:#e9edf5;border-radius:99px;overflow:hidden}.fill{height:100%;background:var(--accent);border-radius:99px}.callout{border-left:4px solid var(--accent);background:var(--accent2);padding:15px 18px;border-radius:8px;margin:18px 0}.small{font-size:13px;color:var(--muted)}code{background:#f1f3f5;padding:2px 5px;border-radius:5px}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.pill{font-weight:700;font-size:12px;padding:4px 8px;border-radius:999px;background:#eef2ff}.footer{text-align:center;color:var(--muted);font-size:13px;margin-top:30px}
+@media(max-width:650px){.hero{padding:34px 24px}.hero h1{font-size:38px}.barrow{grid-template-columns:110px 1fr 45px}section{padding:22px}}
+</style>
+</head>
+<body>
+<main>
+<header class="hero">
+<div class="eyebrow">FlyRank Search Intelligence · Capstone Research Paper</div>
+<h1>Content Refresh Opportunity Scoring</h1>
+<p>A leakage-aware ranking system for prioritizing which content items deserve human review first.</p>
+<span class="tag">Decision support</span><span class="tag">Client-held-out validation</span><span class="tag">Random Forest</span><span class="tag">Ranked action queue</span>
+</header>
+
+<section>
+<h2>Abstract</h2>
+<p class="lead"><b>Question.</b> Can safe search, content, and engagement signals be used to rank content items that are more likely to be in a declining state, so a reviewer can focus limited review time?</p>
+<p><b>Method.</b> We define a declining label from the observed <code>trend_direction = down</code> field, exclude the label and trend-derived fields from features, compare a transparent staleness-plus-demand baseline with a Random Forest, and validate using a client-held-out split.</p>
+<p><b>Result.</b> On the held-out test set, the Random Forest reached Precision@20 = 0.70, Precision@50 = 0.64, and Precision@100 = 0.62, versus 0.40, 0.38, and 0.38 for the baseline.</p>
+<p><b>Interpretation.</b> The model therefore produced a more concentrated review queue on this measured split, while the ROC AUC of 0.616 shows that discrimination is useful but far from perfect.</p>
+<p><b>Practical output.</b> The final system turns scores and observable conditions into reason-coded recommendations such as review/diagnostic, refresh review, and monitor; these are decision-support suggestions, not guarantees of improvement or causal claims.</p>
+</section>
+
+<section>
+<h2>1. Introduction / Problem statement</h2>
+<p>Content teams often have more pages to review than they can inspect manually. The decision supported by this project is simple: <b>which content should a human reviewer examine first?</b></p>
+<p>The goal is not to reconstruct a search engine's ranking algorithm. It is to use the available FlyRank search/content signals to create a repeatable prioritization layer that can surface potentially important items for review.</p>
+<div class="callout"><b>Research framing:</b> the model estimates an observed declining-state label in the supplied dataset. It does not prove why a page declined, that a refresh will recover performance, or that any feature causes search performance.</div>
+</section>
+
+<section>
+<h2>2. Data</h2>
+<div class="grid">
+<div class="metric"><strong>30,000</strong><span>anonymized content rows in the public-safe starter slice used here</span></div>
+<div class="metric"><strong>44</strong><span>released columns before modeling exclusions</span></div>
+<div class="metric"><strong>32</strong><span>pseudonymized clients</span></div>
+<div class="metric"><strong>16,262</strong><span>rows labeled declining</span></div>
+</div>
+<p>The capstone notebook uses <code>data/raw/content_refresh_anonymized.csv</code>, an anonymized FlyRank starter slice. It contains no client names, domains, URLs, private queries, credentials, or raw exports. The analysis works at the content-item level and keeps identifiers only for grouping and review-queue traceability; they are excluded from model features.</p>
+<p>The observed trend distribution is: <code>down</code> 16,262; <code>stable</code> 5,962; <code>up</code> 4,388; <code>new</code> 2,236; <code>flat</code> 1,152. Missing values are retained and handled inside the modeling pipeline.</p>
+<p><b>Excluded from features:</b> <code>trend_direction</code>, <code>trend_pct</code>, the target label, <code>content_id</code>, and <code>client_id</code>. Trend-derived fields were excluded because using them would directly leak the target definition.</p>
+<p class="small">The paper deliberately describes the exact public-safe slice actually modeled rather than claiming that the 30,000-row starter file is the full warehouse release.</p>
+</section>
+
+<section>
+<h2>3. Methodology</h2>
+<h3>Label</h3>
+<p><code>is_declining_label = 1</code> when the observed <code>trend_direction</code> equals <code>down</code>; otherwise 0. The resulting overall rate is 54.21%.</p>
+<h3>Features</h3>
+<p>Features include search demand, content characteristics, historical impressions/clicks/sessions, content age and freshness, CTR, average position, engagement, scroll, and related categorical tiers. Numeric values are median-imputed and standardized; categorical values are most-frequent imputed and one-hot encoded.</p>
+<h3>Baseline</h3>
+<p>The transparent baseline combines percentile-ranked <code>days_since_last_update</code> and <code>search_volume</code> with equal weights: 0.5 staleness + 0.5 demand.</p>
+<h3>Model</h3>
+<p>A Random Forest classifier with 300 trees, balanced subsampling, minimum leaf size 2, and fixed random seed 42 was trained in a preprocessing pipeline.</p>
+<h3>Validation</h3>
+<p>A single 80/20 <b>client-held-out</b> split was used. Training contained 25 clients and 23,837 rows; the test set contained 7 clients and 6,163 rows. Client overlap was zero. The test decline rate was 51.10%.</p>
+<h3>Leakage audit</h3>
+<p>The final feature list was checked to ensure the label, trend direction, trend percentage, content identifier, and client identifier were absent. The pipeline also fits imputers, encoders, and the model on training data before scoring the held-out test set.</p>
+</section>
+
+<section>
+<h2>4. Results</h2>
+<div class="grid">
+<div class="metric"><strong>0.616</strong><span>Random Forest ROC AUC</span></div>
+<div class="metric"><strong>0.607</strong><span>Random Forest average precision</span></div>
+<div class="metric"><strong>0.64</strong><span>Random Forest Precision@50</span></div>
+<div class="metric"><strong>1.25×</strong><span>Precision@50 relative to test base rate</span></div>
+</div>
+<table>
+<thead><tr><th>Method</th><th>ROC AUC</th><th>Average precision</th><th>Precision@20</th><th>Precision@50</th><th>Precision@100</th></tr></thead>
+<tbody>
+<tr><td><b>Random Forest</b></td><td>0.616</td><td>0.607</td><td>0.70</td><td>0.64</td><td>0.62</td></tr>
+<tr><td>Staleness + demand baseline</td><td>0.440</td><td>0.470</td><td>0.40</td><td>0.38</td><td>0.38</td></tr>
+</tbody></table>
+<h3>Precision at K</h3>
+<div class="barrow"><span>Model @20</span><div class="bar"><div class="fill" style="width:70%"></div></div><b>0.70</b></div>
+<div class="barrow"><span>Baseline @20</span><div class="bar"><div class="fill" style="width:40%"></div></div><b>0.40</b></div>
+<div class="barrow"><span>Model @50</span><div class="bar"><div class="fill" style="width:64%"></div></div><b>0.64</b></div>
+<div class="barrow"><span>Baseline @50</span><div class="bar"><div class="fill" style="width:38%"></div></div><b>0.38</b></div>
+<div class="barrow"><span>Model @100</span><div class="bar"><div class="fill" style="width:62%"></div></div><b>0.62</b></div>
+<div class="barrow"><span>Baseline @100</span><div class="bar"><div class="fill" style="width:38%"></div></div><b>0.38</b></div>
+<p>The measured ranking quality is stronger than the hand-written baseline on the same held-out clients at all three review-queue sizes. The model's Precision@50 of 0.64 is also above the 0.511 test-set base rate. These are split-specific observations, not guarantees of future performance.</p>
+</section>
+
+<section>
+<h2>5. Limitations & honest framing</h2>
+<ul>
+<li>The evaluation uses one client-held-out split; it is not a universal estimate of production performance.</li>
+<li>The label is a dataset-defined observed state, not a causal explanation of decline.</li>
+<li>Random Forest probabilities are ranking signals; they should not be read as calibrated probabilities without a calibration study.</li>
+<li>The model cannot establish that refreshing, rewriting, merging, or pruning content will improve search performance.</li>
+<li>The starter slice is anonymized and public-safe; it does not expose client names, domains, private queries, URLs, or raw exports.</li>
+<li>No result here is evidence about Google's proprietary ranking algorithm.</li>
+</ul>
+<div class="callout"><b>Preferred language:</b> observed, measured, associated, directional, ranked, prioritized, decision-support. Avoid causal language such as “causes,” “will recover,” or “proves Google's algorithm.”</div>
+</section>
+
+<section>
+<h2>6. Ranked content recommendations</h2>
+<p>The action engine is intended to create a human-review queue. A high score means “review earlier,” not “take the action automatically.” Reason codes make the queue auditable.</p>
+<table>
+<thead><tr><th>Priority</th><th>Recommendation</th><th>Reason code / evidence</th><th>Human check</th></tr></thead>
+<tbody>
+<tr><td><span class="pill">1</span></td><td><b>Review / diagnose</b></td><td>High model score, especially where recent search performance signals suggest attention is warranted</td><td>Check intent fit, content quality, SERP context, and recent changes</td></tr>
+<tr><td><span class="pill">2</span></td><td><b>Review refresh opportunity</b></td><td>High staleness + meaningful demand or a strong model score</td><td>Confirm information is outdated before editing</td></tr>
+<tr><td><span class="pill">3</span></td><td><b>Monitor</b></td><td>Low demand, limited evidence, or weaker score</td><td>Watch future observations before spending review effort</td></tr>
+<tr><td><span class="pill">4</span></td><td><b>Protect / avoid unnecessary change</b></td><td>Stable/strong observed performance outside the urgent review queue</td><td>Verify there is a concrete reason to change the content</td></tr>
+</tbody></table>
+<p>The deployed notebook also produces a ranked queue with <code>rank</code>, <code>content_id</code>, model score, action, staleness, demand, trend state, CTR, engagement, and impressions. Client names and private identifiers are not exposed.</p>
+</section>
+
+<section>
+<h2>7. Reproducibility</h2>
+<p>The complete analysis is available in the repository:</p>
+<ul>
+<li><a href="https://github.com/dee0742/ML-FlyRank-Task/blob/main/work/notebooks/capstone.ipynb">Capstone notebook</a> — final model, validation, results, queue, and charts.</li>
+<li><a href="https://github.com/dee0742/ML-FlyRank-Task/tree/main/work/notebooks">Assignment notebooks</a> — Weeks 1–7 work leading to the capstone.</li>
+<li><a href="https://github.com/dee0742/ML-FlyRank-Task/blob/main/work/notebooks/w06_validation_audit.ipynb">Validation audit</a> — client-held-out split and leakage checks.</li>
+<li><a href="https://github.com/dee0742/ML-FlyRank-Task/blob/main/work/notebooks/w07_action_playbook.ipynb">Action playbook</a> — ranked recommendations and reason codes.</li>
+</ul>
+<p class="small">The notebook records the measured values used in this paper. Because the dataset and library environment can change, rerunning the notebook is the source of truth for future experiments.</p>
+</section>
+
+<section>
+<h2>8. Acknowledgments & data credit</h2>
+<p>Built on the <b>FlyRank ML Internship dataset</b>.</p>
+<p>Data source: <a href="https://flyrank.ai" target="_blank" rel="noopener">FlyRank</a>. This work follows the public-safe data-use rules supplied with the internship repository.</p>
+</section>
+
+<div class="footer">Search Intelligence Capstone · Public-safe research paper · Updated September 2026</div>
+</main>
+</body>
+</html>
